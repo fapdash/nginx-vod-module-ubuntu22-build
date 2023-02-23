@@ -1,6 +1,9 @@
 = Nginx Build
 
 This builds nginx with the [kaltura nginx vod module](https://github.com/kaltura/nginx-vod-module) statically linked.
+The latest nginx mainline version available on the official nginx ppa gets build.
+The build happens inside of a Docker container.
+The resulting `nginx_*.deb` file gets downloaded into the `download/` directory.
 
 == Dependencies
 - docker.io
