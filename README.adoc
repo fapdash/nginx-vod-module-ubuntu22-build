@@ -1,0 +1,16 @@
+= Nginx Build
+
+This builds nginx with the [kaltura nginx vod module](https://github.com/kaltura/nginx-vod-module) statically linked.
+
+== Dependencies
+- docker.io
+- vagrant >= 2.2
+- ansible >= 2.8
+
+== Executing the build
+
+[source, terminal]
+----
+./build.sh
+----
+

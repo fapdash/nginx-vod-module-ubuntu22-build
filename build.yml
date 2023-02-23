@@ -1,0 +1,77 @@
+---
+- hosts: nginx_build
+  become: true
+  vars:
+    build_dir_name: nginx
+    build_dir: "{{ ansible_env.HOME }}/{{ build_dir_name }}"
+    nginx_vod_module_dir: "{{ build_dir }}/nginx_vod_module"
+    nginx_vod_module_version: "1.31"
+    nginx_build_options: ["--with-file-aio", "--with-threads", "--with-cc-opt=\"-O3 -mpopcnt\"", "--add-module={{ nginx_vod_module_dir }}"]
+    nginx_cflags: "-O3 -mpopcnt"
+  tasks:
+    - name: Get distribution codename
+      shell: lsb_release -cs
+      register: distrib_codename
+    - name: Add nginx signing key
+      apt_key:
+        url: https://nginx.org/keys/nginx_signing.key
+        state: present
+    - name: Add nginx mainline apt repo
+      apt_repository:
+        repo: "deb https://nginx.org/packages/mainline/ubuntu/ {{ distrib_codename.stdout }} nginx"
+        state: present
+    - name: Add nginx mainline apt source repo
+      apt_repository:
+        repo: "deb-src https://nginx.org/packages/mainline/ubuntu/ {{ distrib_codename.stdout }} nginx"
+        state: present
+    - name: Update apt cache
+      apt:
+        update_cache: true
+    - name: Install the build dependencies for nginx
+      apt:
+        pkg: nginx
+        state: build-dep
+    - name: Create install directory in the current working directory
+      file:
+        name: "{{ build_dir }}"
+        state: directory
+    - name: Change the working directory to somedir/ before executing the command.
+      shell: apt source nginx
+      args:
+        chdir: "{{ build_dir }}"
+    - name: clone nginx-vod-module repository
+      git:
+        repo: "https://github.com/kaltura/nginx-vod-module.git"
+        dest: "{{ nginx_vod_module_dir }}"
+        update: yes
+        version: "{{ nginx_vod_module_version }}"
+    - name: Get nginx version from apt-cache
+      shell: apt-cache policy nginx | grep 'Candidate:' | grep -oP '\d+\.\d+\.\d+'
+      register: nginx_version
+    - name: Get full nginx version from apt-cache
+      shell: apt-cache policy nginx | grep 'Candidate:' | grep -oP '\d+\.\d+\.\d+.*\~\w+'
+      register: nginx_version_full
+    - name: Read the rules file
+      shell: "cat {{ build_dir }}/nginx-{{ nginx_version.stdout }}/debian/rules"
+      register: rules_file
+    - name: Add build options
+      replace:
+        path: "{{ build_dir }}/nginx-{{ nginx_version.stdout }}/debian/rules"
+        regexp: '\.\/configure'
+        replace: './configure {{ item }}'
+      when: rules_file.stdout.find(item) == -1
+      loop: "{{ nginx_build_options }}"
+    - name: Set compile options
+      replace:
+        path: "{{ build_dir }}/nginx-{{ nginx_version.stdout }}/debian/rules"
+        regexp: 'CFLAGS=\"[\w|\s|-]*\"'
+        replace: 'CFLAGS="{{ nginx_cflags }}"'
+    - name: Build nginx .deb file
+      shell: dpkg-buildpackage -b --no-sign
+      args:
+        chdir: "{{ build_dir }}/nginx-{{ nginx_version.stdout }}/"
+    - name: Download built nginx .deb file
+      fetch:
+        src: "{{ build_dir }}/nginx_{{ nginx_version_full.stdout }}_amd64.deb"
+        dest: download/
+        flat: yes

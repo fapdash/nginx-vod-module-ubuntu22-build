@@ -1,0 +1,5 @@
+[nginx_build]
+192.17.172.200
+
+[all:vars]
+ansible_python_interpreter="/usr/bin/python3"
